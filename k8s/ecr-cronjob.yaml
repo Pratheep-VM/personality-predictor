@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ecr-token-refresher
+spec:
+  schedule: "0 */8 * * *"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: default
+          terminationGracePeriodSeconds: 0
+          containers:
+          - name: ecr-token-refresher
+            image: odaniait/aws-kubectl:latest
+            imagePullPolicy: IfNotPresent
+            command:
+            - /bin/sh
+            - -c
+            - |
+              TOKEN=$(aws ecr get-login-password --region us-east-1)
+              kubectl delete secret aws-registry-key --ignore-not-found=true
+              kubectl create secret docker-registry aws-registry-key \
+                --docker-server=740820043343.dkr.ecr.us-east-1.amazonaws.com \
+                --docker-username=AWS \
+                --docker-password=$TOKEN
+          restartPolicy: OnFailure

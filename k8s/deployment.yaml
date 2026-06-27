@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: personality-api-deployment
+  labels:
+    app: personality-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: personality-api
+  template:
+    metadata:
+      labels:
+        app: personality-api
+    spec:
+      containers:
+      - name: api
+        image: 740820043343.dkr.ecr.us-east-1.amazonaws.com/personality-prediction-api:latest
+        ports:
+        - containerPort: 8000
+      imagePullSecrets:
+      - name: aws-registry-key

@@ -1,0 +1,52 @@
+name: GitOps CI - Build & Update Manifests
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  id-token: write
+  contents: write
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: personality-prediction-api
+  ROLE_TO_ASSUME: arn:aws:iam::740820043343:role/GitHubActionsECRRole
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ env.ROLE_TO_ASSUME }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Log in to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build, Tag, and Push Image to ECR
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+        docker push -a $ECR_REGISTRY/$ECR_REPOSITORY
+
+    - name: Update Kubernetes Manifest
+      run: |
+        sed -i "s|image: 740820043343.dkr.ecr.us-east-1.amazonaws.com/personality-prediction-api:.*|image: 740820043343.dkr.ecr.us-east-1.amazonaws.com/personality-prediction-api:${{ github.sha }}|g" k8s/deployment.yaml
+
+    - name: Commit and Push Manifest Changes
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git add k8s/deployment.yaml
+        git commit -m "Bump image tag to ${{ github.sha }} [skip ci]"
+        git push origin main
