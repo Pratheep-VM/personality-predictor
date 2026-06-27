@@ -1,12 +1,16 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 import joblib
 import pandas as pd
 from typing import Optional
 
+# disable the default docs/redoc paths so we can serve our custom styled reference
 app = FastAPI(
     title="Personality Predictor API", 
-    description="Predicts if a person is an Introvert or Extrovert based on behavioral metrics."
+    description="Production-grade classification engine utilizing a tuned machine learning pipeline.",
+    docs_url=None, 
+    redoc_url=None
 )
 
 # Load the saved model pipeline
@@ -15,7 +19,7 @@ try:
 except FileNotFoundError:
     model = None
 
-# Define input schema matching our dataset columns
+# Match our dataset columns exactly
 class PredictionInput(BaseModel):
     Time_spent_Alone: float
     Stage_fear: str
@@ -43,21 +47,56 @@ class PredictionInput(BaseModel):
 def home():
     return {
         "status": "online",
-        "message": "Personality Predictor API is operational. Send a POST request to /predict"
+        "message": "Personality Predictor API is operational. Access developer documentation at /docs"
     }
+
+# CUSTOM PRODUCTION DOCUMENTATION ROUTE (Scalar UI)
+@app.get("/docs", include_in_schema=False)
+def custom_docs():
+    return HTMLResponse("""
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Personality Predictor API Docs</title>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          body {
+            margin: 0;
+            padding: 0;
+          }
+        </style>
+      </head>
+      <body>
+        <!-- Serve Scalar API Reference from CDN -->
+        <script
+          id="api-reference"
+          data-url="/openapi.json"
+          data-configuration='{
+            "theme": "purple",
+            "showSidebar": true,
+            "hideModels": false,
+            "searchHotKey": "k"
+          }'></script>
+        <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+      </body>
+    </html>
+    """)
 
 @app.post("/predict")
 def predict(input_data: PredictionInput):
     if model is None:
-        raise HTTPException(status_code=500, detail="Model pipeline file 'model_pipeline.pkl' is missing on the server.")
+        raise HTTPException(
+            status_code=500, 
+            detail="Model pipeline file 'model_pipeline.pkl' is missing on the server."
+        )
     
-    # Convert incoming request data to a DataFrame matching the model's feature names
     input_dict = {
         'Time_spent_Alone': [input_data.Time_spent_Alone],
         'Stage_fear': [input_data.Stage_fear],
-        'Social_event_attendance': [input_data.Social_event_attendance],
+        'Social_event_attendance': [input_data.Social_event_attend],
         'Going_outside': [input_data.Going_outside],
-        'Drained_after_socializing': [input_data.Drained_after_socializing],
+        'Drained_after_socializing': [input_data.Drained_after_social],
         'Friends_circle_size': [input_data.Friends_circle_size],
         'Post_frequency': [input_data.Post_frequency]
     }
@@ -65,11 +104,9 @@ def predict(input_data: PredictionInput):
     df_input = pd.DataFrame(input_dict)
     
     try:
-        # Predict class (0: Introvert, 1: Extrovert)
         prediction_encoded = model.predict(df_input)[0]
         prediction_label = "Extrovert" if prediction_encoded == 1 else "Introvert"
         
-        # Calculate confidence
         probabilities = model.predict_proba(df_input)[0]
         confidence = float(probabilities[prediction_encoded])
         
