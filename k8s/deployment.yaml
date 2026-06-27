@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: api
-        image: 740820043343.dkr.ecr.us-east-1.amazonaws.com/personality-prediction-api:94b1e7ae33ea031a7ce47a9da4995ad695f708a3
+        image: 740820043343.dkr.ecr.us-east-1.amazonaws.com/personality-prediction-api:0d96bca167f762311629d2d87241f7e036cbaa2a
         ports:
         - containerPort: 8000
       imagePullSecrets:
